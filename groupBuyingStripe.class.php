@@ -52,7 +52,7 @@ class Group_Buying_Stripe extends Group_Buying_Credit_Card_Processors {
 	}
 
 	public static function register() {
-		self::add_payment_processor( __CLASS__, self::__( 'eWAY' ) );
+		self::add_payment_processor( __CLASS__, self::__( 'Stripe' ) );
 	}
 
 	/**
@@ -176,16 +176,17 @@ class Group_Buying_Stripe extends Group_Buying_Credit_Card_Processors {
 					"amount" => self::convert_money_to_cents( sprintf( '%0.2f', $purchase->get_total( $this->get_payment_method() ) ) ),
 					"currency" => "usd",
 					"card" => array(
-							'number' = $this->cc_cache['cc_number'],
-							'exp_month' = $this->cc_cache['cc_expiration_month'],
-							'exp_year' = substr( $this->cc_cache['cc_expiration_year'], -2 ),
-							'cvc' = $this->cc_cache['cc_cvv'],
-							'name' = $checkout->cache['billing']['first_name'] . ' ' . $checkout->cache['billing']['last_name'],
+							'number' => $this->cc_cache['cc_number'],
+							'exp_month' => $this->cc_cache['cc_expiration_month'],
+							'exp_year' => substr( $this->cc_cache['cc_expiration_year'], -2 ),
+							'cvc' => $this->cc_cache['cc_cvv'],
+							'name' => $checkout->cache['billing']['first_name'] . ' ' . $checkout->cache['billing']['last_name'],
 						),
 					"description" => $purchase->get_id())
 				);
-			} catch (Stripe_AuthenticationError $e) {
-				self::set_error_messages('Uh-uh, authentication failed!');
+				return $charge;
+			} catch (Exception $e) {
+				self::set_error_messages( $e->getMessage() );
 				return FALSE;
 			}
 		}
@@ -212,14 +213,14 @@ class Group_Buying_Stripe extends Group_Buying_Credit_Card_Processors {
 			register_setting( $page, self::api_id_OPTION );
 			register_setting( $page, self::API_PASSWORD_OPTION );
 			add_settings_field( self::API_MODE_OPTION, self::__( 'Mode' ), array( $this, 'display_api_mode_field' ), $page, $section );
-			add_settings_field( self::api_id_OPTION, self::__( 'Customer ID' ), array( $this, 'display_api_id_field' ), $page, $section );
+			add_settings_field( self::api_id_OPTION, self::__( 'Token' ), array( $this, 'display_api_id_field' ), $page, $section );
 			// add_settings_field(self::API_PASSWORD_OPTION, self::__('Transaction Key (Password)'), array($this, 'display_api_password_field'), $page, $section);
 			//add_settings_field(null, self::__('Currency'), array($this, 'display_currency_code_field'), $page, $section);
 		}
 
 		public function display_api_id_field() {
 			echo '<input type="text" name="'.self::api_id_OPTION.'" value="'.$this->api_id.'" size="80" />';
-			echo '<p class="description">Your unique eWAY customer ID assigned to you when you join eWAY. eg 11438715</p>';
+			echo '<p class="description">Your Token</p>';
 		}
 
 		public function display_api_password_field() {
