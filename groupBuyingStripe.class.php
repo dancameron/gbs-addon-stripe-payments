@@ -2,33 +2,16 @@
 
 class Group_Buying_Stripe extends Group_Buying_Credit_Card_Processors {
 
-	const API_ENDPOINT_SANDBOX = 'https://www.stripe.com.au/gatstripe_cvn/xmltest/testpage.asp';
-	const API_ENDPOINT_LIVE = 'https://www.stripe.com.au/gatstripe_cvn/xmlpayment.asp';
-
-	const MODE_TEST = 'sandbox';
-	const MODE_LIVE = 'live';
-	const api_id_OPTION = 'gb_stripe_username';
-	const API_PASSWORD_OPTION = 'gb_stripe_password';
-	const API_MODE_OPTION = 'gb_stripe_mode';
+	const API_ID_OPTION = 'gb_stripe_username';
 	const PAYMENT_METHOD = 'Credit (Stripe Direct Payments)';
 	protected static $instance;
-	private $api_mode = self::MODE_TEST;
 	private $api_id = '';
-	private $api_password = '';
 
 	protected static function get_instance() {
 		if ( !( isset( self::$instance ) && is_a( self::$instance, __CLASS__ ) ) ) {
 			self::$instance = new self();
 		}
 		return self::$instance;
-	}
-
-	private function get_api_url() {
-		if ( $this->api_mode == self::MODE_LIVE ) {
-			return self::API_ENDPOINT_LIVE;
-		} else {
-			return self::API_ENDPOINT_SANDBOX;
-		}
 	}
 
 	public function get_payment_method() {
@@ -38,9 +21,7 @@ class Group_Buying_Stripe extends Group_Buying_Credit_Card_Processors {
 	protected function __construct() {
 
 		parent::__construct();
-		$this->api_id = get_option( self::api_id_OPTION, '' );
-		// $this->api_password = get_option(self::API_PASSWORD_OPTION, '');
-		$this->api_mode = get_option( self::API_MODE_OPTION, self::MODE_TEST );
+		$this->api_id = get_option( self::API_ID_OPTION, '' );
 
 		add_action( 'admin_init', array( $this, 'register_settings' ), 10, 0 );
 		add_action( 'purchase_completed', array( $this, 'complete_purchase' ), 10, 1 );
@@ -77,10 +58,9 @@ class Group_Buying_Stripe extends Group_Buying_Credit_Card_Processors {
 
 		if ( self::DEBUG ) error_log( '----------Response----------' . print_r( $stripe, TRUE ) );
 		
-		if ( FALSE == $stripe ) {
+		if ( FALSE === $stripe ) {
 			return FALSE;
 		}
-
 
 		/*
 		 * Purchase since payment was successful above.
@@ -167,88 +147,70 @@ class Group_Buying_Stripe extends Group_Buying_Credit_Card_Processors {
 	 * @return array
 	 */
 	private function setup_stripe( Group_Buying_Checkouts $checkout, Group_Buying_Purchase $purchase ) {
-			$user = get_userdata( $purchase->get_user() );
+		$user = get_userdata( $purchase->get_user() );
 
-			require_once 'lib/Stripe.php';
-			Stripe::setApiKey( $this->api_id );
-			try {
-				$charge = Stripe_Charge::create(array(
-					"amount" => self::convert_money_to_cents( sprintf( '%0.2f', $purchase->get_total( $this->get_payment_method() ) ) ),
-					"currency" => "usd",
-					"card" => array(
-							'number' => $this->cc_cache['cc_number'],
-							'exp_month' => $this->cc_cache['cc_expiration_month'],
-							'exp_year' => substr( $this->cc_cache['cc_expiration_year'], -2 ),
-							'cvc' => $this->cc_cache['cc_cvv'],
-							'name' => $checkout->cache['billing']['first_name'] . ' ' . $checkout->cache['billing']['last_name'],
-						),
-					"description" => $purchase->get_id())
-				);
-				return $charge;
-			} catch (Exception $e) {
-				self::set_error_messages( $e->getMessage() );
-				return FALSE;
-			}
-		}
-
-		private function convert_money_to_cents( $value ) {
-			// strip out commas
-			$value = preg_replace( "/\,/i", "", $value );
-			// strip out all but numbers, dash, and dot
-			$value = preg_replace( "/([^0-9\.\-])/i", "", $value );
-			// make sure we are dealing with a proper number now, no +.4393 or 3...304 or 76.5895,94
-			if ( !is_numeric( $value ) ) {
-				return 0.00;
-			}
-			// convert to a float explicitly
-			$value = (float)$value;
-			return round( $value, 2 )*100;
-		}
-
-		public function register_settings() {
-			$page = Group_Buying_Payment_Processors::get_settings_page();
-			$section = 'gb_authorizenet_settings';
-			add_settings_section( $section, self::__( 'stripe' ), array( $this, 'display_settings_section' ), $page );
-			register_setting( $page, self::API_MODE_OPTION );
-			register_setting( $page, self::api_id_OPTION );
-			register_setting( $page, self::API_PASSWORD_OPTION );
-			add_settings_field( self::API_MODE_OPTION, self::__( 'Mode' ), array( $this, 'display_api_mode_field' ), $page, $section );
-			add_settings_field( self::api_id_OPTION, self::__( 'Token' ), array( $this, 'display_api_id_field' ), $page, $section );
-			// add_settings_field(self::API_PASSWORD_OPTION, self::__('Transaction Key (Password)'), array($this, 'display_api_password_field'), $page, $section);
-			//add_settings_field(null, self::__('Currency'), array($this, 'display_currency_code_field'), $page, $section);
-		}
-
-		public function display_api_id_field() {
-			echo '<input type="text" name="'.self::api_id_OPTION.'" value="'.$this->api_id.'" size="80" />';
-			echo '<p class="description">Your Token</p>';
-		}
-
-		public function display_api_password_field() {
-			echo '<input type="text" name="'.self::API_PASSWORD_OPTION.'" value="'.$this->api_password.'" size="80" />';
-		}
-
-		public function display_api_mode_field() {
-			echo '<label><input type="radio" name="'.self::API_MODE_OPTION.'" value="'.self::MODE_LIVE.'" '.checked( self::MODE_LIVE, $this->api_mode, FALSE ).'/> '.self::__( 'Live' ).'</label><br />';
-			echo '<label><input type="radio" name="'.self::API_MODE_OPTION.'" value="'.self::MODE_TEST.'" '.checked( self::MODE_TEST, $this->api_mode, FALSE ).'/> '.self::__( 'Sandbox' ).'</label>';
-		}
-
-		public function display_currency_code_field() {
-			echo 'Specified in your Authorize.Net Merchant Interface.';
-		}
-
-		public function display_exp_meta_box() {
-			return GB_PATH . '/controllers/payment_processors/meta-boxes/exp-only.php';
-		}
-
-		public function display_price_meta_box() {
-			return GB_PATH . '/controllers/payment_processors/meta-boxes/no-dyn-price.php';
-		}
-
-		public function display_limits_meta_box() {
-			return GB_PATH . '/controllers/payment_processors/meta-boxes/no-tipping.php';
+		require_once 'lib/Stripe.php';
+		Stripe::setApiKey( $this->api_id );
+		try {
+			$charge = Stripe_Charge::create(array(
+				"amount" => self::convert_money_to_cents( sprintf( '%0.2f', $purchase->get_total( $this->get_payment_method() ) ) ),
+				"currency" => "usd",
+				"card" => array(
+						'number' => $this->cc_cache['cc_number'],
+						'exp_month' => $this->cc_cache['cc_expiration_month'],
+						'exp_year' => substr( $this->cc_cache['cc_expiration_year'], -2 ),
+						'cvc' => $this->cc_cache['cc_cvv'],
+						'name' => $checkout->cache['billing']['first_name'] . ' ' . $checkout->cache['billing']['last_name'],
+					),
+				"description" => $purchase->get_id())
+			);
+			return $charge;
+		} catch (Exception $e) {
+			self::set_error_messages( $e->getMessage() );
+			return FALSE;
 		}
 	}
-	Group_Buying_Stripe::register();
+
+	private function convert_money_to_cents( $value ) {
+		// strip out commas
+		$value = preg_replace( "/\,/i", "", $value );
+		// strip out all but numbers, dash, and dot
+		$value = preg_replace( "/([^0-9\.\-])/i", "", $value );
+		// make sure we are dealing with a proper number now, no +.4393 or 3...304 or 76.5895,94
+		if ( !is_numeric( $value ) ) {
+			return 0.00;
+		}
+		// convert to a float explicitly
+		$value = (float)$value;
+		return round( $value, 2 )*100;
+	}
+
+	public function register_settings() {
+		$page = Group_Buying_Payment_Processors::get_settings_page();
+		$section = 'gb_authorizenet_settings';
+		add_settings_section( $section, self::__( 'stripe' ), array( $this, 'display_settings_section' ), $page );
+		register_setting( $page, self::API_ID_OPTION );
+		add_settings_field( self::API_ID_OPTION, self::__( 'Token' ), array( $this, 'display_api_id_field' ), $page, $section );
+	}
+
+	public function display_api_id_field() {
+		echo '<input type="text" name="'.self::API_ID_OPTION.'" value="'.$this->api_id.'" size="80" />';
+		echo '<p class="description">Your Live or Test Token</p>';
+	}
+
+	public function display_exp_meta_box() {
+		return GB_PATH . '/controllers/payment_processors/meta-boxes/exp-only.php';
+	}
+
+	public function display_price_meta_box() {
+		return GB_PATH . '/controllers/payment_processors/meta-boxes/no-dyn-price.php';
+	}
+
+	public function display_limits_meta_box() {
+		return GB_PATH . '/controllers/payment_processors/meta-boxes/no-tipping.php';
+	}
+}
+Group_Buying_Stripe::register();
 
 
 	
