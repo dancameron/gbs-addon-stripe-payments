@@ -7,7 +7,7 @@ class Group_Buying_Stripe extends Group_Buying_Credit_Card_Processors {
 	protected static $instance;
 	private $api_id = '';
 
-	protected static function get_instance() {
+	public static function get_instance() {
 		if ( !( isset( self::$instance ) && is_a( self::$instance, __CLASS__ ) ) ) {
 			self::$instance = new self();
 		}
