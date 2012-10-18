@@ -1,7 +1,7 @@
 <?php
 /*
-Plugin Name: Group Buying Payment Processor - Stripe Payments
-Version: Beta 2
+Plugin Name: Group Buying Payment Processor - Stripe Payments (beta)
+Version: .02
 Plugin URI: http://sproutventure.com/wordpress/group-buying
 Description: Stripe Direct Payments Add-on.
 Author: Sprout Venture
